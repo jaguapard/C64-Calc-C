@@ -23,6 +23,21 @@ uint8_t bn_add(const BigNum* op1, const BigNum* op2, BigNum* ret)
     return carry;
 }
 
+//subtracts op2 from op1 and returns the carry bit of the result
+uint8_t bn_sub(const BigNum* op1, const BigNum* op2, BigNum* ret)
+{
+    int i;
+    uint16_t cast, result, carry = 0;
+    for (i = 0; i < BIG_NUM_SIZE; ++i)
+    {
+        cast = op1->content[i];
+        result = cast - op2->content[i] - carry;
+        carry = result > 255 ? 1 : 0;
+        ret->content[i] = result;
+    }
+    return carry;
+}
+
 //prints a BigNum in hexadecimal format, least significant bytes first, most significant bits in byte first, i.e. 65534 will be 0xFE 0xFF
 void bn_print_hex(const BigNum* n)
 {
@@ -36,9 +51,17 @@ void bn_print_hex(const BigNum* n)
         if (i < BIG_NUM_SIZE-1) putchar(' ');
     }
 }
+
+void bn_set_zero(BigNum* n)
+{
+    int i = 0;
+    for (i; i < BIG_NUM_SIZE; ++i) n->content[i] = 0;
+}
 int main()
 {
-    BigNum n1, n2;
+    BigNum n1, n2, n3, n4;
+    bn_set_zero(&n1);
+    bn_set_zero(&n2);
     n1.content[0] = 0x34;
     n1.content[1] = 0x23;
     n1.content[2] = 0x11;
@@ -53,5 +76,13 @@ int main()
     putchar('\n');
     bn_print_hex(&n2);
     putchar('\n');
+
+    bn_add(&n1, &n2, &n3);
+    bn_sub(&n1, &n2, &n4);
+    bn_print_hex(&n3);
+    putchar('\n');
+    bn_print_hex(&n4);
+    putchar('\n');
+
     return 0;
 }

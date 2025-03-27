@@ -158,6 +158,7 @@ void bn_print_dec(const BigNum* n)
             bn_sub(&remaining, power_of_ten, &remaining);
             ++digit;
         }
+        if (digit > 9) digit = 9; //avoid garbage characters appearing due to precision errors on the lowest powers
         putchar('0'+digit);        
     }
 

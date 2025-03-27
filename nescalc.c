@@ -186,7 +186,12 @@ int main()
     bn_print_dec((const BigNum*)pi);
     
     bn_set_zero(&n2);
-    n2.content[0] = 187;
+    //'0x72f6a6' = 7534246
+    n2.content[0] = 0xA6;
+    n2.content[1] = 0xF6;
+    n2.content[2] = 0x72;
+
+    //result should be = PI * 7534246 = 23669531.88393828442503519227
     bn_mul((const BigNum*)pi, &n2, &mul_res);
     bn_print_dec(&mul_res);
     /*

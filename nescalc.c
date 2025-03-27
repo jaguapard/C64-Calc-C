@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "tables.h"
+
 #define BIG_NUM_SIZE 16
 static const char hexDigits[] = "0123456789ABCDEF";
+
+int BN_PRINT_HEX_AUTO_NEWLINE = 1;
+
 typedef struct 
 {
     uint8_t content[BIG_NUM_SIZE]; 
@@ -50,6 +55,7 @@ void bn_print_hex(const BigNum* n)
         putchar(hexDigits[lowNibble]);
         if (i < BIG_NUM_SIZE-1) putchar(' ');
     }
+    if (BN_PRINT_HEX_AUTO_NEWLINE) putchar('\n');
 }
 
 void bn_set_zero(BigNum* n)
@@ -57,6 +63,7 @@ void bn_set_zero(BigNum* n)
     int i = 0;
     for (i; i < BIG_NUM_SIZE; ++i) n->content[i] = 0;
 }
+
 int main()
 {
     BigNum n1, n2, n3, n4;
@@ -73,16 +80,12 @@ int main()
     n2.content[4] = 0xEF;
 
     bn_print_hex(&n1);
-    putchar('\n');
     bn_print_hex(&n2);
-    putchar('\n');
 
     bn_add(&n1, &n2, &n3);
     bn_sub(&n1, &n2, &n4);
     bn_print_hex(&n3);
-    putchar('\n');
     bn_print_hex(&n4);
-    putchar('\n');
 
     return 0;
 }

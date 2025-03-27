@@ -54,18 +54,7 @@ static void bn_set(BigNum* dst, const BigNum* src)
 
 static void bn_compare(const BigNum* n1, const BigNum* n2, int* isLess, int* isEqual, int* isGreater)
 {
-    int i;
-    for (i = BIG_NUM_SIZE-1; i >= 0; --i)
-    {
-        uint8_t x1 = n1->content[i];
-        uint8_t x2 = n2->content[i];
-        *isLess = x1 < x2;
-        *isEqual = x1 == x2;
-        *isGreater = x1 > x2;
-        //printf("GGDsgsdfg");
-        //printf("Comparing %d with %d: L:%d,E:%d,G:%d", x1, x2, *isLess, *isEqual, *isGreater);
-        if (x1 != x2) break;
-    }
+    __chain_compare(n1->content, n2->content, isLess, isEqual, isGreater, BIG_NUM_SIZE);
 }
 
 //shift BigNum left by shiftCount bits, and store result in out. Returns the last shifted out bit
@@ -123,9 +112,9 @@ void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
 
     for (i = 0; i < BIG_NUM_SIZE; ++i)
     {
-        shifting1.content[i] = n1->content[i];
-        shifting2.content[i] = n2->content[i];
+        shifting1.content[i] = n1->content[i];        
         shifting1.content[i+BIG_NUM_SIZE] = 0;
+        shifting2.content[i] = n2->content[i];
         shifting2.content[i+BIG_NUM_SIZE] = 0;
     }
     memset(tmp.content, 0, sizeof(tmp.content));
@@ -140,4 +129,71 @@ void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
     for (i = 0; i < BIG_NUM_SIZE; ++i) out->content[i] = tmp.content[i+BIG_NUM_SIZE/2];
 }
 
+void bn_div(const BigNum* n1, const BigNum* n2, BigNum* out)
+{
+    
+    uint16_t i, k;
+    int j = 0;
+    int isLess, isEqual, isGreater;
+    HugeNum shifting1, shifting2, tmp;
+    const uint8_t* p1 = (const uint8_t*)(&shifting1.content) + 8; 
+        const uint8_t* p2 = (const uint8_t*)(&shifting2.content) + 8;
+    memset(tmp.content, 0, sizeof(tmp.content));
+    //tmp.content[0] = 1;
+    memset(shifting1.content, 0, sizeof(shifting1.content));
+    for (i = 0; i < BIG_NUM_SIZE; ++i)
+    {
+        shifting1.content[i+BIG_NUM_SIZE/2] = n1->content[i]; //shifting1 = n1 << 64, so we can just do normal division and take the lower part
+        shifting2.content[i] = n2->content[i];
+        shifting2.content[i+BIG_NUM_SIZE] = 0;
+    }
+    
+    //For example: 6 / 1. Since we have 64-bit shifted format, we need to calculate (6 << 64) / 1
+    //doing this involves repeated subtraction. For that, we need to find lowest shift, that shifts 1 far enough away to become >= (6 << 64)
+    k = 0;
+    while (1)
+    {
+        __chain_compare(shifting1.content, shifting2.content, &isLess, &isEqual, &isGreater, HUGE_NUM_SIZE);
+        if (isGreater) 
+        {
+            ++k;
+            __chain_shift_left(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE);
+            continue;
+        }
+        if (isEqual)
+        {
+            //++k;
+            break;
+        }
+        if (isLess)
+        {
+            --k;
+            __chain_shift_right(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE);
+            break;
+        }
+    }
+
+    /*
+    printf("k is %d\n", k);
+    BN_PRINT_HEX_SPACES = 0;
+    bn_print_hex((const BigNum*)p1);
+    bn_print_hex((const BigNum*)p2);
+    printf("Res\n");
+    //after this, k = 66 (1 << 66 == 4 * 1 << 64 less than or equal to 6 << 64, 1 << 67 is more)
+    */
+
+    for (j = k; j >= 0; --j)
+    {
+        __chain_compare(shifting1.content, shifting2.content, &isLess, &isEqual, &isGreater, HUGE_NUM_SIZE);
+        //printf("j=%d, L:%d, E:%d, G:%d\n", j,isLess, isEqual, isGreater);
+        if (!isLess)
+        {
+            __chain_number_sub(shifting1.content, shifting2.content, shifting1.content, HUGE_NUM_SIZE);            
+            tmp.content[j/8] |= 1 << (j % 8); //set the j-th bit of tmp to 1
+        }
+        __chain_shift_right(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE);
+    }
+
+    for (i = 0; i < BIG_NUM_SIZE; ++i) out->content[i] = tmp.content[i];
+}
 #endif

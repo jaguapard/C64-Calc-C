@@ -72,4 +72,20 @@ static uint8_t __chain_shift_left(const uint8_t* inp, uint8_t* out, uint8_t shif
     return shiftedBit;
 }
 
+static void __chain_compare(const uint8_t* op1, const uint8_t* op2, int* isLess, int* isEqual, int* isGreater, int numSize)
+{
+    int i;
+    for (i = numSize-1; i >= 0; --i)
+    {
+        uint8_t x1 = op1[i];
+        uint8_t x2 = op2[i];
+        *isLess = x1 < x2;
+        *isEqual = x1 == x2;
+        *isGreater = x1 > x2;
+        //printf("GGDsgsdfg");
+        //printf("Comparing %d with %d: L:%d,E:%d,G:%d", x1, x2, *isLess, *isEqual, *isGreater);
+        if (x1 != x2) break;
+    }
+}
+
 #endif

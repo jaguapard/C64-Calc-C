@@ -185,6 +185,7 @@ int main()
 {
     BigNum mul_res, n2;
     bn_print_dec((const BigNum*)pi);
+    bn_print_dec((const BigNum*)euler);
     
     bn_set_zero(&n2);
     //'0x72f6a6' = 7534246
@@ -194,6 +195,13 @@ int main()
 
     //result should be = PI * 7534246 = 23669531.88393828442503519227
     bn_mul((const BigNum*)pi, &n2, &mul_res);
+    bn_print_dec(&mul_res);
+
+    //Euler's number = 2.718281828459045090795598
+    //Pi * Euler's number = 8.539734222673566278406671355
+    bn_mul((const BigNum*)pi, (const BigNum*)euler, &mul_res);
+    bn_print_dec(&mul_res);    
+    bn_mul((const BigNum*)euler, (const BigNum*)pi, &mul_res);
     bn_print_dec(&mul_res);
     /*
     BigNum n1, n2, n3, n4;

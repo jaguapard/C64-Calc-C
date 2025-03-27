@@ -2,6 +2,7 @@
 #define BIGNUM_H
 #include "base_ops.h"
 #include "tables.h"
+#include "HugeNum.h"
 
 static int BN_PRINT_HEX_AUTO_NEWLINE = 1;
 static int BN_PRINT_HEX_SPACES = 1;
@@ -115,21 +116,28 @@ static void bn_print_dec(const BigNum* n)
     if (BN_PRINT_DEC_AUTO_NEWLINE) putchar('\n');
 }
 
-//TODO: this returns n1 * n2 * 10^19 !!!
 void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
 {
     uint16_t i;
-    BigNum shifting1, shifting2;
+    HugeNum shifting1, shifting2, tmp;
 
-    bn_set_zero(out);
-    bn_set(&shifting1, n1);
-    bn_set(&shifting2, n2);
-    for (i = 0; i < (uint16_t)(BIG_NUM_SIZE)*8; ++i)
+    for (i = 0; i < BIG_NUM_SIZE; ++i)
     {
-        uint8_t op2_shift_result = bn_shift_right(&shifting2, &shifting2, 1);
-        if (op2_shift_result) bn_add(out, &shifting1, out);
-        bn_shift_left(&shifting1, &shifting1, 1);
+        shifting1.content[i] = n1->content[i];
+        shifting2.content[i] = n2->content[i];
+        shifting1.content[i+BIG_NUM_SIZE] = 0;
+        shifting2.content[i+BIG_NUM_SIZE] = 0;
     }
+    memset(tmp.content, 0, sizeof(tmp.content));
+
+    for (i = 0; i < (uint16_t)(HUGE_NUM_SIZE)*8; ++i)
+    {
+        uint8_t op2_shift_result = __chain_shift_right(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE);
+        if (op2_shift_result) __chain_number_add(tmp.content, shifting1.content, tmp.content, HUGE_NUM_SIZE);
+        __chain_shift_left(shifting1.content, shifting1.content, 1, HUGE_NUM_SIZE);
+    }
+
+    for (i = 0; i < BIG_NUM_SIZE; ++i) out->content[i] = tmp.content[i+BIG_NUM_SIZE/2];
 }
 
 #endif

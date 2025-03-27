@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "BigNum.h"
 #include "HugeNum.h"
 
 

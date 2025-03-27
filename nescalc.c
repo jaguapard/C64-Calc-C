@@ -88,9 +88,50 @@ void bn_compare(const BigNum* n1, const BigNum* n2, int* isLess, int* isEqual, i
     }
 }
 
+//shift BigNum left by shiftCount bits, and store result in out. Returns the last shifted out bit
+uint8_t bn_shift_left(const BigNum* inp, BigNum* out, uint8_t shiftCount)
+{
+    uint8_t shiftedBit = 0;
+    uint8_t i = 0, j;
+    bn_set(out, inp);
+    for (i; i < shiftCount; ++i)
+    {
+        uint8_t msb = 0;
+        for (j = 0; j < BIG_NUM_SIZE; ++j)
+        {
+            uint8_t byte_in = out->content[j];
+            out->content[j] = (byte_in << 1) | msb;
+            msb = byte_in >> 7;
+        }
+        shiftedBit = msb;
+    }
+    return shiftedBit;
+}
+
+//shift BigNum right by shiftCount bits, and store result in out. Returns the last shifted out bit
+uint8_t bn_shift_right(const BigNum* inp, BigNum* out, uint8_t shiftCount)
+{
+    uint8_t i = 0;
+    int j;
+    uint8_t shiftedBit = 0;
+    bn_set(out, inp);
+    for (i; i < shiftCount; ++i)
+    {
+        uint8_t lsb = 0;
+        for (j = BIG_NUM_SIZE - 1; j >= 0; --j)
+        {
+            uint8_t byte_in = out->content[j];
+            out->content[j] = (byte_in >> 1) | (lsb << 7);
+            lsb = byte_in & 1;
+        }
+        shiftedBit = lsb;
+    }
+    return shiftedBit;
+}
+
 void bn_print_dec(const BigNum* n)
 {
-    BigNum remaining, tmp;
+    BigNum remaining;
     int pwr, isLess, isGreater, isEqual, digit;
     const BigNum* p10_ptr = (const BigNum*)(powers_of_ten) + 19;
 
@@ -122,9 +163,32 @@ void bn_print_dec(const BigNum* n)
 
     if (BN_PRINT_DEC_AUTO_NEWLINE) putchar('\n');
 }
+
+//TODO: this returns n1 * n2 * 10^19 !!!
+void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
+{
+    uint16_t i;
+    BigNum shifting1, shifting2;
+
+    bn_set_zero(out);
+    bn_set(&shifting1, n1);
+    bn_set(&shifting2, n2);
+    for (i = 0; i < (uint16_t)(BIG_NUM_SIZE)*8; ++i)
+    {
+        uint8_t op2_shift_result = bn_shift_right(&shifting2, &shifting2, 1);
+        if (op2_shift_result) bn_add(out, &shifting1, out);
+        bn_shift_left(&shifting1, &shifting1, 1);
+    }
+}
 int main()
 {
+    BigNum mul_res, n2;
     bn_print_dec((const BigNum*)pi);
+    
+    bn_set_zero(&n2);
+    n2.content[0] = 187;
+    bn_mul((const BigNum*)pi, &n2, &mul_res);
+    bn_print_dec(&mul_res);
     /*
     BigNum n1, n2, n3, n4;
     bn_set_zero(&n1);

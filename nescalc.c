@@ -7,6 +7,8 @@
 static const char hexDigits[] = "0123456789ABCDEF";
 
 int BN_PRINT_HEX_AUTO_NEWLINE = 1;
+int BN_PRINT_HEX_SPACES = 1;
+int BN_PRINT_DEC_AUTO_NEWLINE = 1;
 
 typedef struct 
 {
@@ -53,7 +55,7 @@ void bn_print_hex(const BigNum* n)
         uint8_t highNibble = n->content[i] >> 4;
         putchar(hexDigits[highNibble]);
         putchar(hexDigits[lowNibble]);
-        if (i < BIG_NUM_SIZE-1) putchar(' ');
+        if (i < BIG_NUM_SIZE-1 && BN_PRINT_HEX_SPACES) putchar(' ');
     }
     if (BN_PRINT_HEX_AUTO_NEWLINE) putchar('\n');
 }
@@ -64,8 +66,66 @@ void bn_set_zero(BigNum* n)
     for (i; i < BIG_NUM_SIZE; ++i) n->content[i] = 0;
 }
 
+void bn_set(BigNum* dst, const BigNum* src)
+{
+    int i = 0;
+    for (i; i < BIG_NUM_SIZE; ++i) dst->content[i] = src->content[i];
+}
+
+void bn_compare(const BigNum* n1, const BigNum* n2, int* isLess, int* isEqual, int* isGreater)
+{
+    int i;
+    for (i = BIG_NUM_SIZE-1; i >= 0; --i)
+    {
+        uint8_t x1 = n1->content[i];
+        uint8_t x2 = n2->content[i];
+        *isLess = x1 < x2;
+        *isEqual = x1 == x2;
+        *isGreater = x1 > x2;
+        //printf("GGDsgsdfg");
+        //printf("Comparing %d with %d: L:%d,E:%d,G:%d", x1, x2, *isLess, *isEqual, *isGreater);
+        if (x1 != x2) break;
+    }
+}
+
+void bn_print_dec(const BigNum* n)
+{
+    BigNum remaining, tmp;
+    int pwr, isLess, isGreater, isEqual, digit;
+    const BigNum* p10_ptr = (const BigNum*)(powers_of_ten) + 19;
+
+    BN_PRINT_HEX_SPACES = 0;
+    bn_set(&remaining, n);   
+    for (pwr = 19; pwr >= -19; --pwr)
+    {
+        const BigNum* power_of_ten = p10_ptr + pwr;
+        //printf("%s%d\n", "Power of ten is now ", pwr);
+        //bn_print_hex(power_of_ten);
+
+        if (pwr == -1) putchar('.');
+       
+        digit = 0;
+        while (1)
+        {
+            //printf("Comparing\n");
+            //bn_print_hex(&remaining);
+            //bn_print_hex(power_of_ten);
+            bn_compare(&remaining, power_of_ten, &isLess, &isEqual, &isGreater);
+            //printf("Less: %d, Equal: %d, Greater: %d\n", isLess, isEqual, isGreater);
+            if (isLess) break;
+            //printf("%s%d\n", "Subbing power ", pwr);
+            bn_sub(&remaining, power_of_ten, &remaining);
+            ++digit;
+        }
+        putchar('0'+digit);        
+    }
+
+    if (BN_PRINT_DEC_AUTO_NEWLINE) putchar('\n');
+}
 int main()
 {
+    bn_print_dec((const BigNum*)pi);
+    /*
     BigNum n1, n2, n3, n4;
     bn_set_zero(&n1);
     bn_set_zero(&n2);
@@ -87,5 +147,8 @@ int main()
     bn_print_hex(&n3);
     bn_print_hex(&n4);
 
+    bn_print_dec(&n1);
+    bn_print_dec(&n2);
+    */
     return 0;
 }

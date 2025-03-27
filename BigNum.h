@@ -4,6 +4,8 @@
 #include "tables.h"
 #include "HugeNum.h"
 
+#define MIN_POWER_OF_TEN -19
+#define MAX_POWER_OF_TEN 19
 static int BN_PRINT_HEX_AUTO_NEWLINE = 1;
 static int BN_PRINT_HEX_SPACES = 1;
 static int BN_PRINT_DEC_AUTO_NEWLINE = 1;
@@ -69,21 +71,23 @@ static uint8_t bn_shift_right(const BigNum* inp, BigNum* out, uint8_t shiftCount
     return __chain_shift_right(inp->content, out->content, shiftCount, BIG_NUM_SIZE);
 }
 
-static void bn_print_dec(const BigNum* n)
+//prints decimal representation of n into str. str must have at least 42 bytes available!
+static void bn_print_dec_str(const BigNum* n, char* str)
 {
     BigNum remaining;
     int pwr, isLess, isGreater, isEqual, digit;
-    const BigNum* p10_ptr = (const BigNum*)(powers_of_ten) + 19;
+    int i = 0;
+    const BigNum* p10_ptr = (const BigNum*)(powers_of_ten) - MIN_POWER_OF_TEN;
 
     BN_PRINT_HEX_SPACES = 0;
     bn_set(&remaining, n);   
-    for (pwr = 19; pwr >= -19; --pwr)
+    for (pwr = MAX_POWER_OF_TEN; pwr >= MIN_POWER_OF_TEN; --pwr)
     {
         const BigNum* power_of_ten = p10_ptr + pwr;
         //printf("%s%d\n", "Power of ten is now ", pwr);
         //bn_print_hex(power_of_ten);
 
-        if (pwr == -1) putchar('.');
+        if (pwr == -1) str[i++] = '.';
        
         digit = 0;
         while (1)
@@ -99,10 +103,53 @@ static void bn_print_dec(const BigNum* n)
             ++digit;
         }
         if (digit > 9) digit = 9; //avoid garbage characters appearing due to precision errors on the lowest powers
-        putchar('0'+digit);        
+        str[i++] = '0' + digit;        
     }
+    str[i] = 0;
+}
+static void bn_print_dec(const BigNum* n)
+{
+    char buf[42];
+    bn_print_dec_str(n, buf);
+    printf("%s", buf);
 
     if (BN_PRINT_DEC_AUTO_NEWLINE) putchar('\n');
+}
+
+static char* bn_print_dec_nice_str(const BigNum* n, char* str)
+{
+    int i, j = 0, int_start = -1, fraction_end = -1;
+    char sign = ' '; //TODO: get sign when it is supported
+    char buf[42];
+
+    bn_print_dec_str(n, buf);    
+    for (i = 0; i < 20; ++i) //TODO: remove hardcoded stuff
+    {
+        if (buf[i] != '0')
+        {
+            //printf("Int start char is %d\n", buf[i]);
+            int_start = i;
+            break; 
+        }
+    }
+    for (i = 39-3; i >= 21; --i) //-3 is grace: these numbers are basically noise due to precision errors
+    {
+        if (buf[i] != '0')
+        {
+            //printf("Frac end char is %d\n", buf[i]);
+            fraction_end = i;
+            break;
+        }
+    }
+
+    putchar(sign);
+    //printf("int start %d, frac end %d\n", int_start, fraction_end);
+    if (int_start != -1) for (i = int_start; i < 20; ++i) str[j++] = buf[i];
+    else str[j++] = '0';
+    if (fraction_end != -1) for (i = 20; i <= fraction_end; ++i) str[j++] = buf[i];
+    str[j] = 0;
+    //if (BN_PRINT_DEC_AUTO_NEWLINE) putchar('\n');
+    return str; //syntactic sugar for printf, doesn't actually create any new memory
 }
 
 void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)

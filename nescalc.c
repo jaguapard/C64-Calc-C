@@ -5,7 +5,6 @@
 #include "BigNum.h"
 #include "HugeNum.h"
 
-
 static char nice_str[50], s2[50], s3[50];
 static BigNum mul_res, n2, n3, n4;
 
@@ -33,7 +32,7 @@ int main()
     //Euler's number = 2.718281828459045090795598
     //Pi * Euler's number = 8.539734222673566278406671355
     bn_mul(bn_pi, bn_e, &mul_res);
-    printf("Pi*E %s\n", bn_print_dec_nice_str(&mul_res, nice_str));
+    printf("Pi*E=%s\n", bn_print_dec_nice_str(&mul_res, nice_str));
     
     bn_mul(bn_e, bn_pi, &mul_res);
     printf("E*Pi=%s\n", bn_print_dec_nice_str(&mul_res, nice_str));
@@ -69,6 +68,6 @@ int main()
     printf("%s+%s=%s\n", bn_print_dec_nice_str(&n3, nice_str), bn_print_dec_nice_str(&n4, s2), bn_print_dec_nice_str(&mul_res, s3) );
 
     bn_sub(&n4, &n3, &mul_res);
-    printf("%s+%s=%s\n", bn_print_dec_nice_str(&n4, nice_str), bn_print_dec_nice_str(&n3, s2), bn_print_dec_nice_str(&mul_res, s3) );
+    printf("%s-%s=%s\n", bn_print_dec_nice_str(&n4, nice_str), bn_print_dec_nice_str(&n3, s2), bn_print_dec_nice_str(&mul_res, s3) );
     return 0;
 }

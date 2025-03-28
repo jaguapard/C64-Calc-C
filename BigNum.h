@@ -79,26 +79,17 @@ static void bn_print_dec_str(const BigNum* n, char* str)
     int i = 0;
     const BigNum* p10_ptr = (const BigNum*)(powers_of_ten) - MIN_POWER_OF_TEN;
 
-    BN_PRINT_HEX_SPACES = 0;
     bn_set(&remaining, n);   
     for (pwr = MAX_POWER_OF_TEN; pwr >= MIN_POWER_OF_TEN; --pwr)
     {
         const BigNum* power_of_ten = p10_ptr + pwr;
-        //printf("%s%d\n", "Power of ten is now ", pwr);
-        //bn_print_hex(power_of_ten);
 
-        if (pwr == -1) str[i++] = '.';
-       
+        if (pwr == -1) str[i++] = '.';       
         digit = 0;
-        while (1)
+        while (1) //repeatedly subtract powers of 10 and keep track of how much times does power of ten fit inside remaining number (that'll be decimal digits of the result)
         {
-            //printf("Comparing\n");
-            //bn_print_hex(&remaining);
-            //bn_print_hex(power_of_ten);
             bn_compare(&remaining, power_of_ten, &isLess, &isEqual, &isGreater);
-            //printf("Less: %d, Equal: %d, Greater: %d\n", isLess, isEqual, isGreater);
             if (isLess) break;
-            //printf("%s%d\n", "Subbing power ", pwr);
             bn_sub(&remaining, power_of_ten, &remaining);
             ++digit;
         }
@@ -132,7 +123,7 @@ static char* bn_print_dec_nice_str(const BigNum* n, char* str)
             break; 
         }
     }
-    for (i = 39-3; i >= 21; --i) //-3 is grace: these numbers are basically noise due to precision errors
+    for (i = 39-3; i >= 21; --i) //-3 is here to prevent unwanted long tails: lowest numbers are basically noise due to precision errors
     {
         if (buf[i] != '0')
         {
@@ -142,13 +133,12 @@ static char* bn_print_dec_nice_str(const BigNum* n, char* str)
         }
     }
 
-    putchar(sign);
-    //printf("int start %d, frac end %d\n", int_start, fraction_end);
+    //-1 in int_start and fraction_end means that respective part was not found (all chars are zeroes)
     if (int_start != -1) for (i = int_start; i < 20; ++i) str[j++] = buf[i];
     else str[j++] = '0';
+
     if (fraction_end != -1) for (i = 20; i <= fraction_end; ++i) str[j++] = buf[i];
     str[j] = 0;
-    //if (BN_PRINT_DEC_AUTO_NEWLINE) putchar('\n');
     return str; //syntactic sugar for printf, doesn't actually create any new memory
 }
 
@@ -157,6 +147,7 @@ void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
     uint16_t i;
     HugeNum shifting1, shifting2, tmp;
 
+    //expand inputs to twice the size, since multiplication can return up to 2*x bits
     for (i = 0; i < BIG_NUM_SIZE; ++i)
     {
         shifting1.content[i] = n1->content[i];        
@@ -166,11 +157,30 @@ void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
     }
     memset(tmp.content, 0, sizeof(tmp.content));
 
+    /*
+        Use basic school-grade arithmetic for multiplication, but with binary. 
+        Conviniently, since the only multiplier bits are 0 and 1, 
+        multiplication can be replaced by chain of bit shifts and conditional additions. 
+        This can probably also be sped up by multiplication table lookup, but that will take more memory.
+
+        Example: 6 * 3 = 0b110 * 0b011
+            110
+        *   011
+        =======
+            110     = 110 * 1 (bit 0 of operand 2)
+        +  110      = 110 * 1 (bit 1 of operand 2)
+        + 000       = 110 * 0 (bit 2 of operand 2)
+        =======
+           cc       c = carry over to next digit
+          10010  
+        =======
+        2+16=18
+    */
     for (i = 0; i < (uint16_t)(HUGE_NUM_SIZE)*8; ++i)
     {
-        uint8_t op2_shift_result = __chain_shift_right(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE);
-        if (op2_shift_result) __chain_number_add(tmp.content, shifting1.content, tmp.content, HUGE_NUM_SIZE);
-        __chain_shift_left(shifting1.content, shifting1.content, 1, HUGE_NUM_SIZE);
+        uint8_t op2_shift_result = __chain_shift_right(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE); //if the least significant bit was set in shifting2
+        if (op2_shift_result) __chain_number_add(tmp.content, shifting1.content, tmp.content, HUGE_NUM_SIZE);   //then add shifting1 to tmp
+        __chain_shift_left(shifting1.content, shifting1.content, 1, HUGE_NUM_SIZE); //shift anyway
     }
 
     for (i = 0; i < BIG_NUM_SIZE; ++i) out->content[i] = tmp.content[i+BIG_NUM_SIZE/2];
@@ -178,15 +188,10 @@ void bn_mul(const BigNum* n1, const BigNum* n2, BigNum* out)
 
 void bn_div(const BigNum* n1, const BigNum* n2, BigNum* out)
 {
-    
-    uint16_t i, k;
-    int j = 0;
-    int isLess, isEqual, isGreater;
+    int i, k = 0, isLess, isEqual, isGreater;
     HugeNum shifting1, shifting2, tmp;
-    const uint8_t* p1 = (const uint8_t*)(&shifting1.content) + 8; 
-        const uint8_t* p2 = (const uint8_t*)(&shifting2.content) + 8;
+
     memset(tmp.content, 0, sizeof(tmp.content));
-    //tmp.content[0] = 1;
     memset(shifting1.content, 0, sizeof(shifting1.content));
     for (i = 0; i < BIG_NUM_SIZE; ++i)
     {
@@ -196,8 +201,7 @@ void bn_div(const BigNum* n1, const BigNum* n2, BigNum* out)
     }
     
     //For example: 6 / 1. Since we have 64-bit shifted format, we need to calculate (6 << 64) / 1
-    //doing this involves repeated subtraction. For that, we need to find lowest shift, that shifts 1 far enough away to become >= (6 << 64)
-    k = 0;
+    //doing this involves repeated subtraction. For that, we need to find lowest shift, that shifts divisor far enough away to become >= (6 << 64)
     while (1)
     {
         __chain_compare(shifting1.content, shifting2.content, &isLess, &isEqual, &isGreater, HUGE_NUM_SIZE);
@@ -220,27 +224,35 @@ void bn_div(const BigNum* n1, const BigNum* n2, BigNum* out)
         }
     }
 
-    /*
-    printf("k is %d\n", k);
-    BN_PRINT_HEX_SPACES = 0;
-    bn_print_hex((const BigNum*)p1);
-    bn_print_hex((const BigNum*)p2);
-    printf("Res\n");
     //after this, k = 66 (1 << 66 == 4 * 1 << 64 less than or equal to 6 << 64, 1 << 67 is more)
-    */
+    /*  
+        use school-grade arithmetic for divison, but in binary.
+        Since the only available bits of the quotient are 0 and 1, 
+        that check can be performed by comparison, and acted upon by conditional subtraction
 
-    for (j = k; j >= 0; --j)
+        Example: 20/3 == 10100 / 00011 = ?
+            10100|00011
+        -    1100|------	note the shift by 2 bits to the left
+            =====|110		10100 - 1100 = 1000 == 20 - 12 = 8, bit 2 of the result is set
+             1000|			shift divisor to the right
+        -     110|			1000 - 110 = 10 == 8 - 6 = 2		bit 1 of the result is set
+            =====|			shift again
+             __10|			no longer can fit. The coded algorithm will shift and try again until no more bits are available
+                                                                bit 0 of the result is cleared
+    */
+    for (k; k >= 0; --k)
     {
         __chain_compare(shifting1.content, shifting2.content, &isLess, &isEqual, &isGreater, HUGE_NUM_SIZE);
-        //printf("j=%d, L:%d, E:%d, G:%d\n", j,isLess, isEqual, isGreater);
         if (!isLess)
         {
             __chain_number_sub(shifting1.content, shifting2.content, shifting1.content, HUGE_NUM_SIZE);            
-            tmp.content[j/8] |= 1 << (j % 8); //set the j-th bit of tmp to 1
+            tmp.content[k/8] |= 1 << (k % 8); //set the k-th bit of tmp to 1
         }
         __chain_shift_right(shifting2.content, shifting2.content, 1, HUGE_NUM_SIZE);
     }
 
     for (i = 0; i < BIG_NUM_SIZE; ++i) out->content[i] = tmp.content[i];
+    //doesn't really make sense in pseudo-real-numbered division
+    //if (modulo_out) for (i = 0; i < BIG_NUM_SIZE; ++i) modulo_out->content[i] = shifting1.content[i];
 }
 #endif
